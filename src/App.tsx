@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   drawPostCard,
-  parseHighlights,
   CARD_WIDTH,
   CARD_HEIGHT,
-  MAX_HIGHLIGHTS,
   BRAND,
   type PostData,
 } from './lib/postCard'
@@ -56,11 +54,12 @@ function Field({
 
 export default function App() {
   const [data, setData] = useState<PostData>(EMPTY)
+  const [highlightsFit, setHighlightsFit] = useState({ highlightsShown: 0, highlightsTotal: 0 })
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     if (canvasRef.current) {
-      drawPostCard(canvasRef.current, data)
+      setHighlightsFit(drawPostCard(canvasRef.current, data))
     }
   }, [data])
 
@@ -102,8 +101,8 @@ export default function App() {
   }
 
   const isEmpty = !data.propertyType && !data.location && !data.price && !data.highlights
-  const highlightItems = parseHighlights(data.highlights)
-  const hiddenHighlights = Math.max(0, highlightItems.length - MAX_HIGHLIGHTS)
+  const { highlightsShown, highlightsTotal } = highlightsFit
+  const hiddenHighlights = Math.max(0, highlightsTotal - highlightsShown)
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -155,8 +154,8 @@ export default function App() {
               />
               {hiddenHighlights > 0 && (
                 <p className="mt-1.5 text-xs font-medium text-amber-600">
-                  Showing first {MAX_HIGHLIGHTS} of {highlightItems.length} — the last {hiddenHighlights} won't
-                  appear on the post. Separate with · or , to add more, or shorten the list.
+                  Showing {highlightsShown} of {highlightsTotal} — the last {hiddenHighlights} won't fit on
+                  the post. Shorten an item or remove one to fit more.
                 </p>
               )}
             </div>

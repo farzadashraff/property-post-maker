@@ -14,7 +14,6 @@ export const BRAND = {
 
 export const CARD_WIDTH = 1080
 export const CARD_HEIGHT = 1350
-export const MAX_HIGHLIGHTS = 6
 
 const INK = '#111827'
 const SLATE = '#4b5563'
@@ -133,15 +132,23 @@ function fitFontSize(
   return size
 }
 
+// A hard ceiling purely to bound loop/measureText cost on a pathological
+// input (hundreds of comma-separated fragments) — well above anything that
+// could ever fit vertically, so drawChips' own height check below is always
+// what actually decides how many highlights are shown, never this number.
+const HIGHLIGHTS_SANITY_CAP = 30
+
 export function parseHighlights(raw: string): string[] {
   return raw
     .split(/[·•|,\n]/)
     .map((s) => s.trim())
     .filter(Boolean)
+    .slice(0, HIGHLIGHTS_SANITY_CAP)
 }
 
-function splitHighlights(raw: string): string[] {
-  return parseHighlights(raw).slice(0, MAX_HIGHLIGHTS)
+interface ChipLayoutResult {
+  bottomY: number
+  shown: number
 }
 
 function drawChips(
@@ -150,7 +157,8 @@ function drawChips(
   x: number,
   y: number,
   maxWidth: number,
-): number {
+  maxHeight: number,
+): ChipLayoutResult {
   const paddingX = 22
   const paddingY = 16
   const gap = 14
@@ -166,15 +174,27 @@ function drawChips(
   const dotR = 6
 
   const maxTextWidth = maxWidth - paddingX * 2 - dotR * 2 - dotGap
+  const limitY = y + maxHeight
+
+  let shown = 0
 
   for (const rawItem of items) {
     const item = ellipsize(ctx, rawItem, maxTextWidth)
     const textWidth = ctx.measureText(item).width
     const chipWidth = textWidth + paddingX * 2 + dotR * 2 + dotGap
 
+    let rowY = cursorY
     if (cursorX + chipWidth > x + maxWidth) {
+      rowY = cursorY + chipHeight + lineGap
+    }
+
+    // Stop before drawing a chip (or wrapping to a new row) that would
+    // cross into the footer's territory — never clip or overlap it.
+    if (rowY + chipHeight > limitY) break
+
+    if (rowY !== cursorY) {
       cursorX = x
-      cursorY += chipHeight + lineGap
+      cursorY = rowY
     }
 
     ctx.fillStyle = CHIP_BG
@@ -192,9 +212,10 @@ function drawChips(
     ctx.textBaseline = 'alphabetic'
 
     cursorX += chipWidth + gap
+    shown += 1
   }
 
-  return cursorY + chipHeight
+  return { bottomY: cursorY + chipHeight, shown }
 }
 
 // Generous ceilings that sit well above anything that could ever visually
@@ -206,9 +227,15 @@ function drawChips(
 // would get chopped mid-word with no ellipsis (see: price field regression).
 const MAX_FIELD_LEN = { propertyType: 300, location: 300, price: 100, highlights: 500 } as const
 
-export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData) {
+export interface DrawResult {
+  highlightsShown: number
+  highlightsTotal: number
+}
+
+export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData): DrawResult {
+  const fallback = { highlightsShown: 0, highlightsTotal: 0 }
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) return fallback
 
   const data: PostData = {
     propertyType: rawData.propertyType.slice(0, MAX_FIELD_LEN.propertyType),
@@ -295,15 +322,22 @@ export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData) {
   ctx.lineTo(CARD_WIDTH - 64, y)
   ctx.stroke()
 
-  y += 48
-  const highlights = splitHighlights(data.highlights)
-  if (highlights.length > 0) {
-    drawChips(ctx, highlights, 64, y, CARD_WIDTH - 128)
-  }
-
   // ---- brand strip (footer) ----
+  // Computed up front (before drawing it) so the highlights block below
+  // knows exactly how much vertical room it has and can never draw into it.
   const footerHeight = 150
   const footerY = CARD_HEIGHT - footerHeight
+  const footerSafetyMargin = 24
+
+  y += 48
+  const highlights = parseHighlights(data.highlights)
+  let highlightsShown = 0
+  if (highlights.length > 0) {
+    const availableHeight = footerY - footerSafetyMargin - y
+    const result = drawChips(ctx, highlights, 64, y, CARD_WIDTH - 128, availableHeight)
+    highlightsShown = result.shown
+  }
+
   ctx.fillStyle = '#0b0f19'
   ctx.fillRect(0, footerY, CARD_WIDTH, footerHeight)
 
@@ -342,4 +376,6 @@ export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData) {
   ctx.fillStyle = ACCENT
   ctx.fillText('CALL', CARD_WIDTH - 64 - contactWidth - 18, monoCenterY + 8)
   ctx.textAlign = 'left'
+
+  return { highlightsShown, highlightsTotal: highlights.length }
 }
