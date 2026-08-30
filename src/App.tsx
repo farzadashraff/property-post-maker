@@ -28,6 +28,7 @@ function Field({
   onChange,
   maxLength,
   onPaste,
+  describedById,
 }: {
   label: string
   placeholder: string
@@ -35,6 +36,7 @@ function Field({
   onChange: (v: string) => void
   maxLength: number
   onPaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void
+  describedById?: string
 }) {
   return (
     <label className="block">
@@ -46,7 +48,8 @@ function Field({
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         onPaste={onPaste}
-        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-[15px] text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+        aria-describedby={describedById}
+        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-[15px] text-gray-900 outline-none transition focus:border-gray-900 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-900/60"
       />
     </label>
   )
@@ -104,6 +107,19 @@ export default function App() {
   const { highlightsShown, highlightsTotal } = highlightsFit
   const hiddenHighlights = Math.max(0, highlightsTotal - highlightsShown)
 
+  const previewDescription = isEmpty
+    ? 'Property post preview: empty, showing placeholder text. Fill in the fields to generate the post.'
+    : [
+        `Property post preview.`,
+        data.propertyType.trim() || 'Property Listing',
+        data.location.trim() ? `in ${data.location.trim()}` : '',
+        data.price.trim() ? `priced at ${data.price.trim()}` : '',
+        data.highlights.trim() ? `Highlights: ${data.highlights.trim()}.` : '',
+        `Branded with ${BRAND.name}, contact ${BRAND.contact}.`,
+      ]
+        .filter(Boolean)
+        .join(' ')
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="border-b border-gray-200 bg-white">
@@ -151,9 +167,10 @@ export default function App() {
                 onChange={update('highlights')}
                 onPaste={handleHighlightsPaste}
                 maxLength={500}
+                describedById={hiddenHighlights > 0 ? 'highlights-hint' : undefined}
               />
               {hiddenHighlights > 0 && (
-                <p className="mt-1.5 text-xs font-medium text-amber-600">
+                <p id="highlights-hint" className="mt-1.5 text-xs font-medium text-amber-700" role="status">
                   Showing {highlightsShown} of {highlightsTotal} — the last {hiddenHighlights} won't fit on
                   the post. Shorten an item or remove one to fit more.
                 </p>
@@ -189,6 +206,8 @@ export default function App() {
               width={CARD_WIDTH}
               height={CARD_HEIGHT}
               className="block h-auto w-full"
+              role="img"
+              aria-label={previewDescription}
             />
           </div>
         </section>
