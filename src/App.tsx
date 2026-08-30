@@ -20,11 +20,13 @@ function Field({
   placeholder,
   value,
   onChange,
+  maxLength,
 }: {
   label: string
   placeholder: string
   value: string
   onChange: (v: string) => void
+  maxLength: number
 }) {
   return (
     <label className="block">
@@ -33,6 +35,7 @@ function Field({
         type="text"
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-[15px] text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
       />
@@ -57,7 +60,12 @@ export default function App() {
     const canvas = canvasRef.current
     if (!canvas) return
     const link = document.createElement('a')
-    const safeName = (data.propertyType || 'property-post').trim().replace(/\s+/g, '-').toLowerCase()
+    const safeName = (data.propertyType || 'property-post')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60)
     link.download = `${safeName || 'property-post'}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
@@ -88,24 +96,28 @@ export default function App() {
               placeholder="e.g. 4 BHK Luxury Villa, Ansal Golf City"
               value={data.propertyType}
               onChange={update('propertyType')}
+              maxLength={120}
             />
             <Field
               label="Location"
               placeholder="e.g. Sushant Golf City, Lucknow"
               value={data.location}
               onChange={update('location')}
+              maxLength={120}
             />
             <Field
               label="Price"
               placeholder="e.g. ₹2.5 Cr onwards"
               value={data.price}
               onChange={update('price')}
+              maxLength={40}
             />
             <Field
               label="Highlights"
               placeholder="e.g. 3000 sq.ft · Corner plot · Ready to move"
               value={data.highlights}
               onChange={update('highlights')}
+              maxLength={200}
             />
           </div>
 

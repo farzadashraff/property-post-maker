@@ -73,11 +73,7 @@ function wrapText(
   if (!overflow && current) lines.push(current)
 
   if (overflow) {
-    let last = lines[maxLines - 1]
-    while (ctx.measureText(`${last}…`).width > maxWidth && last.length > 0) {
-      last = last.slice(0, -1).trimEnd()
-    }
-    lines[maxLines - 1] = `${last}…`
+    lines[maxLines - 1] = ellipsize(ctx, lines[maxLines - 1], maxWidth)
   }
 
   lines.forEach((line, i) => {
@@ -105,6 +101,18 @@ function drawPinIcon(ctx: CanvasRenderingContext2D, cx: number, topY: number, si
   ctx.arc(cx, headCy, r * 0.4, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
+}
+
+function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  const chars = Array.from(text)
+  let result = ''
+  for (const ch of chars) {
+    const candidate = `${result}${ch}…`
+    if (ctx.measureText(candidate).width > maxWidth) break
+    result += ch
+  }
+  return result ? `${result}…` : '…'
 }
 
 function splitHighlights(raw: string): string[] {
@@ -136,7 +144,10 @@ function drawChips(
   const dotGap = 14
   const dotR = 6
 
-  for (const item of items) {
+  const maxTextWidth = maxWidth - paddingX * 2 - dotR * 2 - dotGap
+
+  for (const rawItem of items) {
+    const item = ellipsize(ctx, rawItem, maxTextWidth)
     const textWidth = ctx.measureText(item).width
     const chipWidth = textWidth + paddingX * 2 + dotR * 2 + dotGap
 
@@ -165,9 +176,18 @@ function drawChips(
   return cursorY + chipHeight
 }
 
-export function drawPostCard(canvas: HTMLCanvasElement, data: PostData) {
+const MAX_FIELD_LEN = { propertyType: 120, location: 120, price: 40, highlights: 200 } as const
+
+export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
+
+  const data: PostData = {
+    propertyType: rawData.propertyType.slice(0, MAX_FIELD_LEN.propertyType),
+    location: rawData.location.slice(0, MAX_FIELD_LEN.location),
+    price: rawData.price.slice(0, MAX_FIELD_LEN.price),
+    highlights: rawData.highlights.slice(0, MAX_FIELD_LEN.highlights),
+  }
 
   canvas.width = CARD_WIDTH
   canvas.height = CARD_HEIGHT
