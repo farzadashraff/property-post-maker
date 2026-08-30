@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { drawPostCard, CARD_WIDTH, CARD_HEIGHT, BRAND, type PostData } from './lib/postCard'
+import {
+  drawPostCard,
+  parseHighlights,
+  CARD_WIDTH,
+  CARD_HEIGHT,
+  MAX_HIGHLIGHTS,
+  BRAND,
+  type PostData,
+} from './lib/postCard'
 
 const EXAMPLE: PostData = {
   propertyType: '4 BHK Luxury Villa, Ansal Golf City',
@@ -21,12 +29,14 @@ function Field({
   value,
   onChange,
   maxLength,
+  onPaste,
 }: {
   label: string
   placeholder: string
   value: string
   onChange: (v: string) => void
   maxLength: number
+  onPaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void
 }) {
   return (
     <label className="block">
@@ -37,6 +47,7 @@ function Field({
         placeholder={placeholder}
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={onPaste}
         className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-[15px] text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
       />
     </label>
@@ -56,6 +67,25 @@ export default function App() {
   const update = (key: keyof PostData) => (value: string) =>
     setData((prev) => ({ ...prev, [key]: value }))
 
+  // A single-line <input> silently strips \n before onChange ever fires,
+  // so a multi-line paste (e.g. from Notes/WhatsApp) would otherwise
+  // collapse into one run-on word with no separator between lines.
+  const handleHighlightsPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text')
+    if (!/\r\n|\r|\n/.test(pasted)) return
+    e.preventDefault()
+    const normalized = pasted
+      .split(/\r\n|\r|\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(' · ')
+    const input = e.currentTarget
+    const start = input.selectionStart ?? input.value.length
+    const end = input.selectionEnd ?? input.value.length
+    const newValue = (input.value.slice(0, start) + normalized + input.value.slice(end)).slice(0, 500)
+    update('highlights')(newValue)
+  }
+
   const handleDownload = () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -72,6 +102,8 @@ export default function App() {
   }
 
   const isEmpty = !data.propertyType && !data.location && !data.price && !data.highlights
+  const highlightItems = parseHighlights(data.highlights)
+  const hiddenHighlights = Math.max(0, highlightItems.length - MAX_HIGHLIGHTS)
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -96,29 +128,38 @@ export default function App() {
               placeholder="e.g. 4 BHK Luxury Villa, Ansal Golf City"
               value={data.propertyType}
               onChange={update('propertyType')}
-              maxLength={120}
+              maxLength={300}
             />
             <Field
               label="Location"
               placeholder="e.g. Sushant Golf City, Lucknow"
               value={data.location}
               onChange={update('location')}
-              maxLength={120}
+              maxLength={300}
             />
             <Field
               label="Price"
               placeholder="e.g. ₹2.5 Cr onwards"
               value={data.price}
               onChange={update('price')}
-              maxLength={40}
+              maxLength={100}
             />
-            <Field
-              label="Highlights"
-              placeholder="e.g. 3000 sq.ft · Corner plot · Ready to move"
-              value={data.highlights}
-              onChange={update('highlights')}
-              maxLength={200}
-            />
+            <div>
+              <Field
+                label="Highlights"
+                placeholder="e.g. 3000 sq.ft · Corner plot · Ready to move"
+                value={data.highlights}
+                onChange={update('highlights')}
+                onPaste={handleHighlightsPaste}
+                maxLength={500}
+              />
+              {hiddenHighlights > 0 && (
+                <p className="mt-1.5 text-xs font-medium text-amber-600">
+                  Showing first {MAX_HIGHLIGHTS} of {highlightItems.length} — the last {hiddenHighlights} won't
+                  appear on the post. Separate with · or , to add more, or shorten the list.
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 space-y-3">

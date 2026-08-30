@@ -14,6 +14,7 @@ export const BRAND = {
 
 export const CARD_WIDTH = 1080
 export const CARD_HEIGHT = 1350
+export const MAX_HIGHLIGHTS = 6
 
 const INK = '#111827'
 const SLATE = '#4b5563'
@@ -115,12 +116,32 @@ function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return result ? `${result}…` : '…'
 }
 
-function splitHighlights(raw: string): string[] {
+function fitFontSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  weight: number,
+  maxSize: number,
+  minSize: number,
+): number {
+  let size = maxSize
+  while (size > minSize) {
+    ctx.font = `${weight} ${size}px "Segoe UI", system-ui, sans-serif`
+    if (ctx.measureText(text).width <= maxWidth) break
+    size -= 2
+  }
+  return size
+}
+
+export function parseHighlights(raw: string): string[] {
   return raw
     .split(/[·•|,\n]/)
     .map((s) => s.trim())
     .filter(Boolean)
-    .slice(0, 6)
+}
+
+function splitHighlights(raw: string): string[] {
+  return parseHighlights(raw).slice(0, MAX_HIGHLIGHTS)
 }
 
 function drawChips(
@@ -176,7 +197,14 @@ function drawChips(
   return cursorY + chipHeight
 }
 
-const MAX_FIELD_LEN = { propertyType: 120, location: 120, price: 40, highlights: 200 } as const
+// Generous ceilings that sit well above anything that could ever visually
+// fit on the card (even for the narrowest characters) — these exist purely
+// to guard against pathological pastes (thousands of chars), not to do
+// routine truncation. The actual visible cutoff — the one that gets a
+// proper "…" — is always decided by wrapText/fitFontSize/ellipsize below.
+// If a raw cap here were small enough to bite before that logic runs, text
+// would get chopped mid-word with no ellipsis (see: price field regression).
+const MAX_FIELD_LEN = { propertyType: 300, location: 300, price: 100, highlights: 500 } as const
 
 export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData) {
   const ctx = canvas.getContext('2d')
@@ -236,10 +264,13 @@ export function drawPostCard(canvas: HTMLCanvasElement, rawData: PostData) {
   ctx.fillStyle = 'rgba(255,255,255,0.65)'
   ctx.fillText('PRICE', 64, heroHeight - 118)
 
-  ctx.font = '800 76px "Segoe UI", system-ui, sans-serif'
   ctx.fillStyle = '#ffffff'
-  const priceText = data.price.trim() || 'Price on request'
-  ctx.fillText(priceText, 64, heroHeight - 56, CARD_WIDTH - 128)
+  const priceMaxWidth = CARD_WIDTH - 128
+  let priceText = data.price.trim() || 'Price on request'
+  const priceFontSize = fitFontSize(ctx, priceText, priceMaxWidth, 800, 76, 34)
+  ctx.font = `800 ${priceFontSize}px "Segoe UI", system-ui, sans-serif`
+  priceText = ellipsize(ctx, priceText, priceMaxWidth)
+  ctx.fillText(priceText, 64, heroHeight - 56)
 
   // ---- content area ----
   let y = heroHeight + 90
