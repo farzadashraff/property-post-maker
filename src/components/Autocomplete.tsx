@@ -109,6 +109,7 @@ export function Autocomplete({
         maxLength={maxLength}
         onChange={(e) => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={() => setIsOpen(false)}
         className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-[15px] text-gray-900 outline-none transition focus:border-gray-900 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-900/60"
       />
       {showDropdown && (
