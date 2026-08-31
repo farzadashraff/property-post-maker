@@ -1,0 +1,20 @@
+/** Predefined highlight toggles shown as checkboxes, in addition to free-typed highlights. */
+export const HIGHLIGHT_OPTIONS: readonly string[] = [
+  'Sea View',
+  'City View',
+  'Golf Course View',
+  'Garden View',
+  'Swimming Pool',
+  'Private Parking',
+  'Corner Plot',
+  'Ready to Move',
+  'Fully Furnished',
+  'Semi Furnished',
+  'Balcony',
+  'Terrace',
+  'Gym',
+  'Security',
+  'Gated Community',
+  'Smart Home',
+  'Power Backup',
+]

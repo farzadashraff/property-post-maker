@@ -2,24 +2,31 @@ import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import { BRAND } from './branding'
 import { drawPostCard } from './lib/postRenderer'
+import { resolvePostData } from './lib/deriveData'
 import { getMissingFields, describeMissingFields, isFormTouched } from './lib/validation'
 import { buildDownloadFilename } from './lib/filename'
 import { PropertyForm } from './components/PropertyForm'
 import { PostPreview } from './components/PostPreview'
-import type { PropertyField, PropertyPostData } from './types'
+import type { PropertyPostData } from './types'
 
 const EXAMPLE: PropertyPostData = {
   propertyType: '4 BHK Luxury Villa, Ansal Golf City',
   location: 'Sushant Golf City, Lucknow',
+  customLocation: '',
+  useCustomLocation: false,
   price: '₹2.5 Cr onwards',
   highlights: '3000 sq.ft · Corner plot · Ready to move',
+  selectedHighlights: [],
 }
 
 const EMPTY: PropertyPostData = {
   propertyType: '',
   location: '',
+  customLocation: '',
+  useCustomLocation: false,
   price: '',
   highlights: '',
+  selectedHighlights: [],
 }
 
 const DOWNLOAD_FEEDBACK_MS = 1800
@@ -31,16 +38,23 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const feedbackTimer = useRef<number | undefined>(undefined)
 
+  const resolved = resolvePostData(data)
+  const highlightsKey = resolved.highlightsList.join('|')
+
   useEffect(() => {
     if (canvasRef.current) {
-      setHighlightsFit(drawPostCard(canvasRef.current, data))
+      setHighlightsFit(drawPostCard(canvasRef.current, resolved))
     }
-  }, [data])
+    // Depends on resolved's primitive fields, not `resolved` itself:
+    // resolvePostData returns a fresh object every render, and this
+    // effect's own setHighlightsFit call would otherwise re-trigger it.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved.propertyType, resolved.location, resolved.price, highlightsKey])
 
   useEffect(() => () => window.clearTimeout(feedbackTimer.current), [])
 
-  const handleFieldChange = (field: PropertyField, value: string) => {
-    setData((prev) => ({ ...prev, [field]: value }))
+  const handleUpdate = (patch: Partial<PropertyPostData>) => {
+    setData((prev) => ({ ...prev, ...patch }))
     if (downloadState === 'success') {
       window.clearTimeout(feedbackTimer.current)
       setDownloadState('idle')
@@ -63,7 +77,7 @@ export default function App() {
     const start = input.selectionStart ?? input.value.length
     const end = input.selectionEnd ?? input.value.length
     const newValue = (input.value.slice(0, start) + normalized + input.value.slice(end)).slice(0, 500)
-    handleFieldChange('highlights', newValue)
+    handleUpdate({ highlights: newValue })
   }
 
   const missingFields = getMissingFields(data)
@@ -77,7 +91,7 @@ export default function App() {
 
     setDownloadState('downloading')
     const link = document.createElement('a')
-    link.download = buildDownloadFilename(data.propertyType)
+    link.download = buildDownloadFilename(resolved.propertyType)
     link.href = canvas.toDataURL('image/png')
     link.click()
 
@@ -99,10 +113,12 @@ export default function App() {
     ? 'Property post preview: empty. Fill in the 4 fields to generate your branded post.'
     : [
         'Property post preview.',
-        data.propertyType.trim() || 'Property name not yet entered.',
-        data.location.trim() ? `in ${data.location.trim()}` : 'Location not yet entered.',
-        data.price.trim() ? `priced at ${data.price.trim()}` : 'Price not yet entered.',
-        data.highlights.trim() ? `Highlights: ${data.highlights.trim()}.` : 'Highlights not yet entered.',
+        resolved.propertyType.trim() || 'Property name not yet entered.',
+        resolved.location.trim() ? `in ${resolved.location.trim()}` : 'Location not yet entered.',
+        resolved.price.trim() ? `priced at ${resolved.price.trim()}` : 'Price not yet entered.',
+        resolved.highlightsList.length > 0
+          ? `Highlights: ${resolved.highlightsList.join(', ')}.`
+          : 'Highlights not yet entered.',
         `Branded automatically with ${BRAND.name}, ${BRAND.role}, contact ${BRAND.phone}.`,
       ].join(' ')
 
@@ -123,7 +139,7 @@ export default function App() {
       <main className="mx-auto grid max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[420px_1fr]">
         <PropertyForm
           data={data}
-          onFieldChange={handleFieldChange}
+          onUpdate={handleUpdate}
           onHighlightsPaste={handleHighlightsPaste}
           highlightsShown={highlightsShown}
           highlightsTotal={highlightsTotal}

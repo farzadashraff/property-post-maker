@@ -1,9 +1,8 @@
 import { BRAND } from '../branding'
-import type { PropertyPostData } from '../types'
-import { isFieldFilled, isFormTouched } from './validation'
+import type { ResolvedPostData } from './deriveData'
+import { isFieldFilled } from './validation'
 import { roundRectPath, wrapText, ellipsize, fitFontSize } from './canvasText'
 import { drawPinIcon, drawPhoneIcon } from './icons'
-import { parseHighlights } from './highlights'
 
 export const CARD_WIDTH = 1080
 export const CARD_HEIGHT = 1350
@@ -25,7 +24,7 @@ const DEEP = BRAND.colors.secondary
 // proper "…" — is always decided by wrapText/fitFontSize/ellipsize below.
 // If a raw cap here were small enough to bite before that logic runs, text
 // would get chopped mid-word with no ellipsis (see: price field regression).
-const MAX_FIELD_LEN = { propertyType: 300, location: 300, price: 100, highlights: 500 } as const
+const MAX_FIELD_LEN = { propertyType: 300, location: 300, price: 100 } as const
 
 const HERO_HEIGHT = 500
 const FOOTER_HEIGHT = 172
@@ -38,15 +37,15 @@ export interface DrawResult {
 
 const EMPTY_RESULT: DrawResult = { highlightsShown: 0, highlightsTotal: 0 }
 
-export function drawPostCard(canvas: HTMLCanvasElement, rawData: PropertyPostData): DrawResult {
+export function drawPostCard(canvas: HTMLCanvasElement, rawData: ResolvedPostData): DrawResult {
   const ctx = canvas.getContext('2d')
   if (!ctx) return EMPTY_RESULT
 
-  const data: PropertyPostData = {
+  const data: ResolvedPostData = {
     propertyType: rawData.propertyType.slice(0, MAX_FIELD_LEN.propertyType),
     location: rawData.location.slice(0, MAX_FIELD_LEN.location),
     price: rawData.price.slice(0, MAX_FIELD_LEN.price),
-    highlights: rawData.highlights.slice(0, MAX_FIELD_LEN.highlights),
+    highlightsList: rawData.highlightsList,
   }
 
   canvas.width = CARD_WIDTH
@@ -55,10 +54,16 @@ export function drawPostCard(canvas: HTMLCanvasElement, rawData: PropertyPostDat
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT)
 
+  const touched =
+    isFieldFilled(data.propertyType) ||
+    isFieldFilled(data.location) ||
+    isFieldFilled(data.price) ||
+    data.highlightsList.length > 0
+
   // The brand strip is drawn regardless of whether the user has typed
   // anything — it is not user content, it is the automatic part of the
   // design, and it should visibly exist even on a blank form.
-  if (!isFormTouched(data)) {
+  if (!touched) {
     drawHeroFrame(ctx, null)
     drawEmptyStateMessage(ctx)
     drawBrandStrip(ctx)
@@ -77,7 +82,7 @@ export function drawPostCard(canvas: HTMLCanvasElement, rawData: PropertyPostDat
   ctx.stroke()
 
   y += 48
-  const result = drawHighlightsSection(ctx, data.highlights, y)
+  const result = drawHighlightsSection(ctx, data.highlightsList, y)
 
   drawBrandStrip(ctx)
 
@@ -140,7 +145,7 @@ function drawHeroFrame(ctx: CanvasRenderingContext2D, price: string | null) {
 }
 
 /** Property title (primary) + location (secondary, with pin icon). */
-function drawPropertyInfoSection(ctx: CanvasRenderingContext2D, data: PropertyPostData): number {
+function drawPropertyInfoSection(ctx: CanvasRenderingContext2D, data: ResolvedPostData): number {
   let y = HERO_HEIGHT + 90
   const maxWidth = CARD_WIDTH - MARGIN * 2
 
@@ -176,17 +181,14 @@ interface ChipLayoutResult {
   shown: number
 }
 
-/** Highlight chips: parsed, styled, and height-aware so they can never overlap the brand strip below. */
-function drawHighlightsSection(ctx: CanvasRenderingContext2D, highlightsRaw: string, y: number): DrawResult {
-  if (!isFieldFilled(highlightsRaw)) {
+/** Highlight chips: already-merged/deduped items, drawn height-aware so they can never overlap the brand strip below. */
+function drawHighlightsSection(ctx: CanvasRenderingContext2D, items: string[], y: number): DrawResult {
+  if (items.length === 0) {
     ctx.font = `italic 400 24px ${FONT}`
     ctx.fillStyle = '#9ca3af'
     ctx.fillText('Highlights will appear here, e.g. "3000 sq.ft · Corner plot · Ready to move"', MARGIN, y)
     return { highlightsShown: 0, highlightsTotal: 0 }
   }
-
-  const items = parseHighlights(highlightsRaw)
-  if (items.length === 0) return { highlightsShown: 0, highlightsTotal: 0 }
 
   const footerSafetyMargin = 24
   const availableHeight = FOOTER_Y - footerSafetyMargin - y

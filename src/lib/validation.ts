@@ -1,4 +1,5 @@
 import type { PropertyField, PropertyPostData } from '../types'
+import { resolvePostData } from './deriveData'
 
 export const FIELD_LABELS: Record<PropertyField, string> = {
   propertyType: 'Property & Type',
@@ -14,7 +15,13 @@ export function isFieldFilled(value: string): boolean {
 }
 
 export function getMissingFields(data: PropertyPostData): PropertyField[] {
-  return FIELD_ORDER.filter((key) => !isFieldFilled(data[key]))
+  const resolved = resolvePostData(data)
+  const missing: PropertyField[] = []
+  if (!isFieldFilled(resolved.propertyType)) missing.push('propertyType')
+  if (!isFieldFilled(resolved.location)) missing.push('location')
+  if (!isFieldFilled(resolved.price)) missing.push('price')
+  if (resolved.highlightsList.length === 0) missing.push('highlights')
+  return missing
 }
 
 export function isFormComplete(data: PropertyPostData): boolean {
@@ -22,7 +29,13 @@ export function isFormComplete(data: PropertyPostData): boolean {
 }
 
 export function isFormTouched(data: PropertyPostData): boolean {
-  return FIELD_ORDER.some((key) => data[key].trim().length > 0)
+  const resolved = resolvePostData(data)
+  return (
+    isFieldFilled(resolved.propertyType) ||
+    isFieldFilled(resolved.location) ||
+    isFieldFilled(resolved.price) ||
+    resolved.highlightsList.length > 0
+  )
 }
 
 export function describeMissingFields(missing: PropertyField[]): string {

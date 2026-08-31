@@ -1,0 +1,21 @@
+/** Common price-point suggestions. The user's exact typed text is always preserved verbatim. */
+export const PRICE_SUGGESTIONS: readonly string[] = [
+  '₹25 Lakhs',
+  '₹50 Lakhs',
+  '₹75 Lakhs',
+  '₹90 Lakhs',
+  '₹1 Cr',
+  '₹1.25 Cr',
+  '₹1.5 Cr',
+  '₹1.75 Cr',
+  '₹2 Cr',
+  '₹2.5 Cr',
+  '₹2.5 Cr onwards',
+  '₹3 Cr',
+  '₹3.5 Cr',
+  '₹5 Cr',
+  '₹7.5 Cr',
+  '₹10 Cr',
+  '₹15 Cr',
+  '₹20 Cr',
+]
